@@ -1,51 +1,62 @@
-# 阶段1: 前端构建
+# 阶段1: 构建前端
 FROM node:20 AS frontend-builder
+
 WORKDIR /app/frontend
+
+# 复制前端依赖文件并安装
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
-COPY frontend .
+
+# 复制前端源代码并构建
+COPY frontend/ .
 RUN pnpm run build
 
-# 阶段2: 后端构建（关键修复）
+# 阶段2: 构建后端
 FROM node:20 AS backend-builder
+
 WORKDIR /app/backend
 
-# 1. 安装所有依赖（包括devDependencies）
+# 复制后端依赖文件并安装
 COPY backend/package.json backend/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
 
-# 2. 复制源码并构建
-COPY backend .
+# 复制后端源代码并构建
+COPY backend/ .
 RUN pnpm run build
 
 # 阶段3: 运行时镜像
 FROM node:20-alpine
+
 WORKDIR /app
 
-# 2. 复制前端
+# 1. 安装nginx和pm2
+RUN apk add --no-cache nginx && \
+    npm install -g pm2 pnpm
+
+# 2. 复制前端构建结果
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# 3. 复制后端（关键改动！）
-# COPY --from=backend-builder /app/backend ./backend
-COPY --from=backend-builder /app/backend/bootstrap.js ./backend/bootstrap.js
-COPY --from=backend-builder /app/backend/package.json ./backend/package.json
-COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/pnpm-lock.yaml
+# 3. 复制后端构建结果和必要文件
+COPY --from=backend-builder /app/backend/dist ./backend/dist
+COPY --from=backend-builder /app/backend/bootstrap.js ./backend/
+COPY --from=backend-builder /app/backend/package.json ./backend/
+COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/
 
-# 安装生产依赖并清理缓存
-RUN npm install -g pnpm && \
-    cd backend && pnpm install --prod
+# 4. 复制nginx配置
+COPY frontend-nginx.conf /etc/nginx/conf.d/default.conf
 
-# 安装 Nginx 和 PM2（合并 RUN 减少层数）
-RUN apk add --no-cache nginx && \
-    npm install -g pm2 && \
-    mkdir -p /var/log/nginx
-
-# 复制配置文件
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# 5. 复制pm2配置文件
 COPY ecosystem.config.js .
 
-# 设置日志权限
-RUN chown -R nginx:nginx /var/log/nginx
+# 6. 安装后端生产依赖
+WORKDIR /app/backend
+RUN pnpm install --prod
 
-EXPOSE 80 7001
+# 7. 设置工作目录
+WORKDIR /app
+
+# 暴露端口
+EXPOSE 80
+
+# 启动命令
 CMD ["pm2-runtime", "ecosystem.config.js"]
