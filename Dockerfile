@@ -42,6 +42,8 @@ COPY --from=backend-builder /app/backend/bootstrap.js ./backend/
 WORKDIR /app/backend
 RUN pnpm install --prod
 
+WORKDIR /app
+
 # 复制Nginx配置（关键修改）
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
