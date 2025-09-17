@@ -9,15 +9,6 @@ RUN npm install -g pnpm && pnpm install
 COPY frontend .
 RUN pnpm run build
 
-# 使用nginx提供构建后的静态文件
-FROM nginx:alpine
-
-# 复制构建的文件到nginx的html目录
-COPY --from=build /app/dist /usr/share/nginx/html/assets/
-
-# 添加自定义nginx配置
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 # 后端构建阶段
 FROM node:20 AS backend-builder
 
@@ -29,11 +20,20 @@ RUN npm install -g pnpm && pnpm install
 COPY backend .
 RUN pnpm run build
 
+# 最终阶段
+FROM node:20
+
 # 安装Node.js和PM2（用于运行后端）
 RUN apk add --no-cache nodejs npm && \
     npm install -g pm2 pnpm
 
 WORKDIR /app
+
+# 复制前端构建结果
+COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html/assets/
+
+# 复制nginx配置
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # 复制后端构建结果
 COPY --from=backend-builder /app/backend/dist ./backend/dist
