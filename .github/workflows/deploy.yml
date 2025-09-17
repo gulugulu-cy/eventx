@@ -20,20 +20,23 @@ jobs:
           echo "REPO_NAME=${REPO_NAME}" >> $GITHUB_ENV
           echo "IMAGE_NAME=${REPO_NAME}-fullstack" >> $GITHUB_ENV
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and Push Docker Image
         env:
           DOCKER_USER: ${{ secrets.DOCKER_HUB_USERNAME }}
-          DOCKER_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
         run: |
-          docker buildx create --use
           docker buildx build \
             --platform linux/amd64 \
             -t $DOCKER_USER/${{ env.IMAGE_NAME }}:latest \
-            --cache-from type=registry,ref=$DOCKER_USER/${{ env.IMAGE_NAME }}:buildcache \
-            --cache-to type=registry,ref=$DOCKER_USER/${{ env.IMAGE_NAME }}:buildcache,mode=max \
             --push .
-          echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
-          docker logout
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
@@ -47,34 +50,30 @@ jobs:
             IMAGE_NAME="${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}"
             CONTAINER_NAME="${{ env.REPO_NAME }}-container"
 
-            # 1. 清理旧资源
-            docker image prune -af --filter "until=24h"
+            # 清理旧容器
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
 
-            # 2. 检查端口占用
-            echo "检查端口..."
-            if docker ps --format '{{.Ports}}' | awk -F '->' '{print $1}' | grep -q ':8083$'; then
-              echo "❌ 错误：8083端口被占用"
+            # 检查端口占用
+            if docker ps --format '{{.Ports}}' | grep -q ':8083->'; then
+              echo "❌ 错误：8083端口被其他容器占用"
               exit 1
             fi
 
-            # 3. 拉取并验证镜像
-            docker pull ${IMAGE_NAME}:latest
-            if ! docker inspect ${IMAGE_NAME}:latest >/dev/null 2>&1; then
-              echo "❌ 错误：镜像不存在"
+            # 拉取镜像
+            docker pull ${IMAGE_NAME}:latest || {
+              echo "❌ 错误：镜像拉取失败"
               exit 1
-            fi
+            }
 
-            # 4. 启动容器
+            # 启动容器
             docker run -d \
               --name ${CONTAINER_NAME} \
               --restart unless-stopped \
               --health-cmd="curl -f http://localhost:80/assets/ || exit 1" \
               --health-interval=30s \
               -p 8083:80 \
-            # -p 7005:7001 \ 不暴漏后端API
               -v /resource:/resource \
               ${IMAGE_NAME}:latest
 
-            echo "✅ 部署成功！容器名称: ${CONTAINER_NAME}"
+            echo "✅ 部署成功！访问地址: http://${{ secrets.SERVER_IP }}:8083"
