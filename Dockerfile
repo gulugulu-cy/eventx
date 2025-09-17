@@ -24,7 +24,7 @@ WORKDIR /app
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # 复制后端
-COPY --from=backend-builder /app/backend/dist ./backend
+COPY --from=backend-builder /app/backend/dist ./backend/dist/
 COPY --from=backend-builder /app/backend/bootstrap.js ./backend/
 COPY --from=backend-builder /app/backend/package.json ./backend/
 COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/
