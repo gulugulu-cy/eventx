@@ -11,7 +11,7 @@ module.exports = {
     {
       name: "backend",
       script: "node",
-      args: "backend/dist/index.js",
+      args: "backend/bootstrap.js",
       env: {
         NODE_ENV: "production",
         PORT: 7001,
