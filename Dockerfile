@@ -16,32 +16,24 @@ RUN npm install -g pnpm && pnpm install
 
 # 2. 复制源码并构建
 COPY backend .
-RUN pnpm run build && \
-    rm -rf node_modules && \
-    pnpm install --prod  # 重建生产依赖
+RUN pnpm run build
 
 # 阶段3: 运行时镜像
 FROM node:20-alpine
 WORKDIR /app
 
-# 1. 安装 PM2 全局
-# RUN npm install -g pm2
-
 # 2. 复制前端
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # 3. 复制后端（关键改动！）
-COPY --from=backend-builder /app/backend ./backend
-
-
-# 4. 直接复用构建阶段的node_modules（避免重复安装）
-RUN ls -la /app/backend/node_modules/@midwayjs  # 验证核心依赖
+# COPY --from=backend-builder /app/backend ./backend
+COPY --from=backend-builder /app/backend/bootstrap.js ./backend/bootstrap.js
+COPY --from=backend-builder /app/backend/package.json ./backend/package.json
+COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/pnpm-lock.yaml
 
 # 安装生产依赖并清理缓存
 RUN npm install -g pnpm && \
-    cd backend && pnpm install --prod && \
-    npm cache clean --force && \
-    rm -rf /tmp/*
+    cd backend && pnpm install --prod
 
 # 安装 Nginx 和 PM2（合并 RUN 减少层数）
 RUN apk add --no-cache nginx && \
