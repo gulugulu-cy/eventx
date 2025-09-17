@@ -1,64 +1,68 @@
-# 阶段1: 构建前端
+# ======================
+# 阶段1: 前端构建
+# ======================
 FROM node:20 AS frontend-builder
 
 WORKDIR /app/frontend
 
-# 复制前端依赖文件并安装
+# 复制前端文件
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
 
-# 复制前端源代码并构建
-COPY frontend/ .
+# 复制剩余前端文件并构建
+COPY frontend .
 RUN pnpm run build
 
-# 阶段2: 构建后端
+# ======================
+# 阶段2: 后端构建
+# ======================
 FROM node:20 AS backend-builder
 
 WORKDIR /app/backend
 
-# 复制后端依赖文件并安装
+# 复制后端依赖文件
 COPY backend/package.json backend/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
 
-# 复制后端源代码并构建
-COPY backend/ .
+# 复制剩余后端文件并构建
+COPY backend .
 RUN pnpm run build
 
+# ======================
 # 阶段3: 运行时镜像
+# ======================
 FROM node:20-alpine
 
 WORKDIR /app
 
-# 1. 安装nginx和pm2
+# 1. 安装基础依赖
 RUN apk add --no-cache nginx && \
     npm install -g pm2 pnpm
 
-# 2. 复制前端构建结果
-COPY --from=frontend-builder /app/frontend ./frontend
+# 2. 从前端构建阶段复制构建结果
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# 3. 复制后端构建结果和必要文件
-COPY --from=backend-builder /app/backend ./backend
+# 3. 从后端构建阶段复制构建结果和必要文件
+COPY --from=backend-builder /app/backend/dist ./backend/dist
+COPY --from=backend-builder /app/backend/package.json ./backend/
+COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/
+COPY --from=backend-builder /app/backend/bootstrap.js ./backend/
 
-# 4. 复制nginx配置
-# COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
-# 复制构建的文件到nginx的html目录
-COPY --from=build /app/frontend/dist /usr/share/nginx/html/assets/
-
-# 添加自定义nginx配置
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
-
-# 5. 复制pm2配置文件
-COPY ecosystem.config.js .
-
-# 6. 安装后端生产依赖
+# 4. 安装后端生产依赖
 WORKDIR /app/backend
 RUN pnpm install --prod
 
-# 7. 设置工作目录
-WORKDIR /app
+# 5. 配置nginx
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# 6. 复制PM2配置文件
+COPY ecosystem.config.js .
+
+# 7. 创建日志目录
+RUN mkdir -p /var/log/pm2
 
 # 暴露端口
 EXPOSE 80 7001
 
-# 启动命令
+# 启动服务
 CMD ["pm2-runtime", "ecosystem.config.js"]

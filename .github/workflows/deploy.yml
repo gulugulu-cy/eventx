@@ -1,80 +1,73 @@
-name: Deploy Fullstack Container
+name: Fullstack PM2 Docker Deploy
 
 on:
   push:
     branches: ["main"]
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # 1. 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 设置 Node.js 环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
-      - name: Extract repository name
-        id: repo-name
-        run: |
-          REPO_NAME=$(echo "$GITHUB_REPOSITORY" | awk -F '/' '{print $2}' | sed 's/\.git$//')
-          echo "REPO_NAME=${REPO_NAME}" >> $GITHUB_ENV
-          echo "IMAGE_NAME=${REPO_NAME}-fullstack" >> $GITHUB_ENV
+      # 3. 安装 pnpm
+      - name: Install pnpm
+        run: npm install -g pnpm
 
+      # 4. 登录 Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and Push Docker Image
-        env:
-          DOCKER_USER: ${{ secrets.DOCKER_HUB_USERNAME }}
+      # 5. 构建 Docker 镜像
+      - name: Build Docker image
         run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            -t $DOCKER_USER/${{ env.IMAGE_NAME }}:latest \
-            --push .
+          REPO_NAME=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f2 | sed 's/\.git$//')
+          echo "REPO_NAME=${REPO_NAME}" >> $GITHUB_ENV
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/${REPO_NAME}:latest .
 
-      - name: Deploy via SSH
+      # 6. 推送 Docker 镜像
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.REPO_NAME }}:latest
+
+      # 7. 部署到服务器
+      - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            #!/bin/bash
-            set -eo pipefail
-            IMAGE_NAME="${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}"
-            CONTAINER_NAME="${{ env.REPO_NAME }}-container"
+            sudo mkdir -p /var/www/app
+            cd /var/www/app || exit 1
 
-            # 清理旧容器
-            docker stop ${CONTAINER_NAME} 2>/dev/null || true
-            docker rm ${CONTAINER_NAME} 2>/dev/null || true
+            CONTAINER_NAME="${{ github.repository_owner }}"
+            IMAGE_NAME="${{ secrets.DOCKER_HUB_USERNAME }}/$(echo "${{ github.repository }}" | cut -d'/' -f2 | sed 's/\.git$//'):latest"
 
-            # 检查端口占用
-            if docker ps --format '{{.Ports}}' | grep -q ':8083->'; then
-              echo "❌ 错误：8083端口被其他容器占用"
-              exit 1
-            fi
+            echo "容器名称: ${CONTAINER_NAME}"
+            echo "镜像名称: ${IMAGE_NAME}"
 
-            # 拉取镜像
-            docker pull ${IMAGE_NAME}:latest || {
-              echo "❌ 错误：镜像拉取失败"
-              exit 1
-            }
-
-            # 启动容器
+            docker pull ${IMAGE_NAME}
+            docker stop "${CONTAINER_NAME}" || echo "容器不存在，无需停止"
+            docker rm "${CONTAINER_NAME}" || echo "容器不存在，无需移除"
+            docker image prune -f
+            
             docker run -d \
-              --name ${CONTAINER_NAME} \
+              --name "${CONTAINER_NAME}" \
               --restart=always \
-              --health-cmd="curl -f http://localhost:80/assets/ || exit 1" \
-              --health-interval=30s \
               -p 8083:80 \
               -v /resource:/resource \
-              -e NODE_ENV=prod \
-              ${IMAGE_NAME}:latest
-
-            echo "✅ 部署成功！访问地址: http://${{ secrets.SERVER_IP }}:8083"
+              -v /var/log/pm2:/var/log/pm2 \
+              ${IMAGE_NAME}
