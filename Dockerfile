@@ -43,7 +43,7 @@ COPY --from=backend-builder /app/backend/package.json ./backend/
 COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/
 
 # 4. 复制nginx配置
-COPY frontend-nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # 5. 复制pm2配置文件
 COPY ecosystem.config.js .
