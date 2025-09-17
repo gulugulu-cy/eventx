@@ -69,7 +69,7 @@ jobs:
             # 启动容器
             docker run -d \
               --name ${CONTAINER_NAME} \
-              --restart unless-stopped \
+            #   --restart unless-stopped \
               --health-cmd="curl -f http://localhost:80/assets/ || exit 1" \
               --health-interval=30s \
               -p 8083:80 \

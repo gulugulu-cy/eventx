@@ -56,7 +56,7 @@ RUN pnpm install --prod
 WORKDIR /app
 
 # 暴露端口
-EXPOSE 80
+EXPOSE 80 7001
 
 # 启动命令
 CMD ["pm2-runtime", "ecosystem.config.js"]
