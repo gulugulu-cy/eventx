@@ -34,15 +34,17 @@ RUN apk add --no-cache nginx && \
     npm install -g pm2 pnpm
 
 # 2. 复制前端构建结果
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY --from=frontend-builder /app/frontend ./frontend
 
 # 3. 复制后端构建结果和必要文件
-COPY --from=backend-builder /app/backend/dist ./backend/dist
-COPY --from=backend-builder /app/backend/bootstrap.js ./backend/
-COPY --from=backend-builder /app/backend/package.json ./backend/
-COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/
+COPY --from=backend-builder /app/backend ./backend
 
 # 4. 复制nginx配置
+# COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# 复制构建的文件到nginx的html目录
+COPY --from=build /app/frontend/dist /usr/share/nginx/html/assets/
+
+# 添加自定义nginx配置
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # 5. 复制pm2配置文件

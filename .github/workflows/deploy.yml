@@ -74,6 +74,7 @@ jobs:
               --health-interval=30s \
               -p 8083:80 \
               -v /resource:/resource \
+              -e NODE_ENV=prod \
               ${IMAGE_NAME}:latest
 
             echo "✅ 部署成功！访问地址: http://${{ secrets.SERVER_IP }}:8083"
