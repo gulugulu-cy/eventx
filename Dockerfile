@@ -4,8 +4,7 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
 COPY frontend .
-RUN pnpm run build && \
-    rm -rf node_modules  # 清理开发依赖
+RUN pnpm run build
 
 # 阶段2: 后端构建（关键修复）
 FROM node:20 AS backend-builder
@@ -13,7 +12,7 @@ WORKDIR /app/backend
 
 # 1. 安装所有依赖（包括devDependencies）
 COPY backend/package.json backend/pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --prod=false
+RUN npm install -g pnpm && pnpm install
 
 # 2. 复制源码并构建
 COPY backend .
@@ -29,7 +28,7 @@ WORKDIR /app
 # RUN npm install -g pm2
 
 # 2. 复制前端
-COPY --from=frontend-builder /app/frontend/dist ./frontend
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # 3. 复制后端（关键改动！）
 COPY --from=backend-builder /app/backend ./backend
@@ -37,9 +36,6 @@ COPY --from=backend-builder /app/backend ./backend
 
 # 4. 直接复用构建阶段的node_modules（避免重复安装）
 RUN ls -la /app/backend/node_modules/@midwayjs  # 验证核心依赖
-
-# EXPOSE 80 7001
-# CMD ["pm2-runtime", "ecosystem.config.js"]
 
 # 安装生产依赖并清理缓存
 RUN npm install -g pnpm && \
