@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'backend',
-      script: './backend/bootstrap.js',
-      cwd: '/app/backend',
+      script: './bootstrap.js',  // 修改路径
+      cwd: '/app/backend',      // 工作目录
       env: {
         NODE_ENV: 'production',
         PORT: 7001

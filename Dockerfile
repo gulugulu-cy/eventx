@@ -31,35 +31,35 @@ RUN pnpm run build
 # ======================
 # 阶段3: 运行时镜像
 # ======================
+
+# 运行时镜像阶段
 FROM node:20-alpine
 
 WORKDIR /app
 
-# 1. 安装基础依赖
+# 安装基础依赖
 RUN apk add --no-cache nginx && \
     npm install -g pm2 pnpm
 
-# 2. 从前端构建阶段复制构建结果
+# 复制前端构建结果
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# 3. 从后端构建阶段复制构建结果和必要文件
+# 复制后端构建结果和必要文件
 COPY --from=backend-builder /app/backend/dist ./backend/dist
 COPY --from=backend-builder /app/backend/package.json ./backend/
 COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/
 COPY --from=backend-builder /app/backend/bootstrap.js ./backend/
 
-# 4. 安装后端生产依赖
+# 安装后端生产依赖
 WORKDIR /app/backend
 RUN pnpm install --prod
 
-# 5. 配置nginx
+# 复制配置文件
 COPY nginx.conf /etc/nginx/nginx.conf
-
-# 6. 复制PM2配置文件
 COPY ecosystem.config.js .
 
-# 7. 创建日志目录
-RUN mkdir -p /var/log/pm2
+# 创建日志目录
+RUN mkdir -p /var/log/pm2 /var/log/nginx
 
 # 暴露端口
 EXPOSE 80 7001
