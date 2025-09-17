@@ -25,9 +25,9 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # 复制后端
 COPY --from=backend-builder /app/backend/dist ./backend/dist/
-COPY --from=backend-builder /app/backend/bootstrap.js ./backend/
-COPY --from=backend-builder /app/backend/package.json ./backend/
-COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/
+COPY --from=backend-builder /app/backend/bootstrap.js ./backend/bootstrap.js
+COPY --from=backend-builder /app/backend/package.json ./backend/package.json
+COPY --from=backend-builder /app/backend/pnpm-lock.yaml ./backend/pnpm-lock.yaml
 
 # 安装生产依赖并清理缓存
 RUN npm install -g pnpm && \
