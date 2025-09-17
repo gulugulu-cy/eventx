@@ -29,7 +29,7 @@ WORKDIR /app
 RUN npm install -g pm2
 
 # 2. 复制前端
-COPY --from=builder /app ./
+COPY --from=builder /app ./*
 
 # # 3. 复制后端（关键改动！）
 # COPY --from=backend-builder /app/backend ./backend
