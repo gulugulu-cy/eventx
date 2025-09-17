@@ -21,11 +21,11 @@ COPY backend .
 RUN pnpm run build
 
 # 最终阶段
-FROM node:20
+FROM node:20-alpine
 
-# 安装Node.js和PM2（用于运行后端）
-RUN apk add --no-cache nodejs npm && \
-    npm install -g pm2 pnpm
+# 安装 Node.js 和 PM2（Alpine 用 apk）
+RUN apk add --no-cache nodejs npm \
+    && npm install -g pm2 pnpm
 
 WORKDIR /app
 
