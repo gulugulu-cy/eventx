@@ -29,13 +29,13 @@ WORKDIR /app
 RUN npm install -g pm2
 
 # 2. 复制前端
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY --from=builder /app ./
 
-# 3. 复制后端（关键改动！）
-COPY --from=backend-builder /app/backend ./backend
+# # 3. 复制后端（关键改动！）
+# COPY --from=backend-builder /app/backend ./backend
 
-# 3. 关键修复：复制 ecosystem.config.js
-COPY --from=ecosystem-builder /app/ecosystem.config.js ./ecosystem.config.js
+# # 3. 关键修复：复制 ecosystem.config.js
+# COPY --from=ecosystem-builder /app/ecosystem.config.js ./ecosystem.config.js
 
 # 4. 直接复用构建阶段的node_modules（避免重复安装）
 RUN ls -la /app/backend/node_modules/@midwayjs  # 验证核心依赖
